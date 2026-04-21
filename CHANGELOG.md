@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-21
+
+### Added
+- **Named profiles** in `~/.config/clipsh/config.toml` (respects
+  `$XDG_CONFIG_HOME`). A profile can set `host`, `port`, `identity`,
+  `jump`, `remote_path`, `ssh_opts`, and `hook`. Select with
+  `--profile / -P`, or `CLIPSH_PROFILE` env var, or `default_profile` in
+  the config itself. Missing config file is not an error.
+- **Post-upload hooks.** Two forms:
+  - `tmux:<session>` — runs `tmux send-keys -t <session> '/image <path>' Enter`
+    on the remote. Drives a Claude Code / editor prompt without a second
+    paste step.
+  - `exec:<cmd>` — runs an arbitrary remote command; `{path}` expands to
+    the shell-quoted uploaded path.
+  Hook failures are logged but do not fail the overall command, since the
+  file is already uploaded.
+- `--hook SPEC` CLI flag and `transport.Exec` for arbitrary SSH command
+  execution (used by hooks).
+
+### Changed
+- Per-field precedence is now: CLI flag > positional (for target) >
+  profile value > built-in default. All values remain overridable per
+  invocation.
+
 ## [0.1.0] - 2026-04-21
 
 ### Added

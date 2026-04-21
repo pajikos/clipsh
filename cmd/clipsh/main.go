@@ -15,6 +15,8 @@ import (
 	"syscall"
 
 	"github.com/pajikos/clipsh/internal/clipboard"
+	"github.com/pajikos/clipsh/internal/config"
+	"github.com/pajikos/clipsh/internal/hook"
 	"github.com/pajikos/clipsh/internal/pathtmpl"
 	"github.com/pajikos/clipsh/internal/transport"
 )
@@ -26,16 +28,18 @@ const defaultPathTmpl = "/tmp/clipsh-{timestamp}.{ext}"
 
 type stringList []string
 
-func (s *stringList) String() string       { return strings.Join(*s, ",") }
-func (s *stringList) Set(v string) error   { *s = append(*s, v); return nil }
+func (s *stringList) String() string     { return strings.Join(*s, ",") }
+func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
 
 type flags struct {
+	profile    string
 	host       string
 	port       int
 	identity   string
 	jump       string
 	sshOpts    stringList
 	remoteTmpl string
+	hook       string
 	source     string
 	noCopy     bool
 	dryRun     bool
@@ -57,21 +61,33 @@ func run(argv []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
-	tail := leftoverArgs
+	// Load config (missing file is fine — empty Config).
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(stderr, "clipsh: %v\n", err)
+		return 5
+	}
+	profileName := cfg.ResolveProfileName(f.profile)
+	profile := cfg.ProfileOrEmpty(profileName)
 
+	// Positional args: [TARGET] [FILE]. Disambiguation: a single positional
+	// that looks like user@host (or an existing-local-file negation) is the
+	// target; otherwise it's a file.
 	var target, fileArg string
+	tail := leftoverArgs
 	switch len(tail) {
 	case 0:
-		if f.host == "" {
-			fmt.Fprintln(stderr, "clipsh: no target specified. Pass user@host or --host.")
-			return 2
-		}
+		// nothing — host comes from --host or profile
 	case 1:
-		// one arg: if it looks like user@host and no --host given, treat as target.
-		// otherwise treat as file.
-		if f.host == "" && looksLikeSSHTarget(tail[0]) {
+		switch {
+		case f.host != "":
+			// --host was explicit → positional is the file.
+			fileArg = tail[0]
+		case looksLikeSSHTarget(tail[0]):
+			// Looks like user@host (or a bare non-file token) → target.
+			// Overrides any profile.host.
 			target = tail[0]
-		} else {
+		default:
 			fileArg = tail[0]
 		}
 	case 2:
@@ -81,11 +97,12 @@ func run(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "clipsh: too many positional arguments")
 		return 2
 	}
+	// Merge: positional > --host > profile.host.
 	if target == "" {
-		target = f.host
+		target = firstNonEmpty(f.host, profile.Host)
 	}
 	if target == "" {
-		fmt.Fprintln(stderr, "clipsh: no target specified")
+		fmt.Fprintln(stderr, "clipsh: no target specified. Pass user@host, --host, or configure a profile.")
 		return 2
 	}
 
@@ -99,45 +116,60 @@ func run(argv []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	// 2. Render remote path.
-	ctx := pathtmpl.Context{Ext: ext, Basename: basename}
-	ctx.Auto()
-	remotePath, err := pathtmpl.Render(pickTmpl(f.remoteTmpl), ctx)
+	// 2. Render remote path — flag > profile > built-in default.
+	tmpl := firstNonEmpty(f.remoteTmpl, profile.RemotePath, defaultPathTmpl)
+	tctx := pathtmpl.Context{Ext: ext, Basename: basename}
+	tctx.Auto()
+	remotePath, err := pathtmpl.Render(tmpl, tctx)
 	if err != nil {
 		fmt.Fprintf(stderr, "clipsh: %v\n", err)
 		return 5
 	}
 
-	// 3. Dry-run: print plan and stop.
+	// 3. Resolve effective transport options — flag > profile.
+	opts := transport.Options{
+		Host:     target,
+		Port:     firstNonZero(f.port, profile.Port),
+		Identity: firstNonEmpty(f.identity, profile.Identity),
+		Jump:     firstNonEmpty(f.jump, profile.Jump),
+		SSHOpts:  mergeSSHOpts(f.sshOpts, profile.SSHOpts),
+		Verbose:  f.verbose,
+	}
+	hookSpec := firstNonEmpty(f.hook, profile.Hook)
+
+	// 4. Dry-run: print plan and stop.
 	if f.dryRun {
 		fmt.Fprintf(stdout, "would upload %d bytes (%s) to %s:%s\n",
 			len(data), ext, target, remotePath)
+		if hookSpec != "" {
+			fmt.Fprintf(stdout, "would run hook: %s\n", hookSpec)
+		}
 		return 0
 	}
 
-	// 4. Upload.
+	// 5. Upload.
 	bgCtx, cancel := signalContext()
 	defer cancel()
 
-	err = transport.Upload(bgCtx, transport.Options{
-		Host:     target,
-		Port:     f.port,
-		Identity: f.identity,
-		Jump:     f.jump,
-		SSHOpts:  f.sshOpts,
-		Verbose:  f.verbose,
-	}, remotePath, bytes.NewReader(data))
-	if err != nil {
+	if err := transport.Upload(bgCtx, opts, remotePath, bytes.NewReader(data)); err != nil {
 		fmt.Fprintf(stderr, "clipsh: %v\n", err)
 		return 4
 	}
 
-	// 5. Copy remote path to local clipboard (unless suppressed).
+	// 6. Run hook (opt-in, best-effort — a hook failure is non-fatal since
+	// the upload itself succeeded).
+	if hookSpec != "" {
+		if err := hook.Run(bgCtx, opts, hookSpec, remotePath); err != nil {
+			fmt.Fprintf(stderr, "clipsh: hook %q failed: %v\n", hookSpec, err)
+		}
+	}
+
+	// 7. Copy remote path to local clipboard (unless suppressed).
 	if !f.noCopy {
 		if err := clipboard.Copy(remotePath); err != nil {
 			fmt.Fprintf(stderr, "clipsh: uploaded, but clipboard copy failed: %v\n", err)
 			fmt.Fprintln(stdout, remotePath)
-			return 0 // upload succeeded; treat clipboard failure as soft
+			return 0
 		}
 	}
 
@@ -155,6 +187,8 @@ func parseFlags(argv []string, stderr io.Writer) *flags {
 	fs.SetOutput(stderr)
 	fs.Usage = func() { usage(fs.Output()) }
 
+	fs.StringVar(&f.profile, "P", "", "Config profile name")
+	fs.StringVar(&f.profile, "profile", "", "Config profile name")
 	fs.StringVar(&f.host, "H", "", "SSH target (alternative to positional arg)")
 	fs.StringVar(&f.host, "host", "", "SSH target (alternative to positional arg)")
 	fs.IntVar(&f.port, "p", 0, "SSH port")
@@ -167,6 +201,7 @@ func parseFlags(argv []string, stderr io.Writer) *flags {
 	fs.Var(&f.sshOpts, "ssh-opt", "Extra ssh -o KEY=VALUE (repeatable)")
 	fs.StringVar(&f.remoteTmpl, "r", "", "Remote path template (default: "+defaultPathTmpl+")")
 	fs.StringVar(&f.remoteTmpl, "remote-path", "", "Remote path template (default: "+defaultPathTmpl+")")
+	fs.StringVar(&f.hook, "hook", "", "Post-upload hook: tmux:<session> | exec:<cmd>")
 	fs.StringVar(&f.source, "source", "auto", "Force source: auto|clip|file")
 	fs.BoolVar(&f.noCopy, "no-copy", false, "Do not copy remote path to local clipboard")
 	fs.BoolVar(&f.dryRun, "n", false, "Print what would happen, do nothing")
@@ -179,7 +214,6 @@ func parseFlags(argv []string, stderr io.Writer) *flags {
 	if err := fs.Parse(argv); err != nil {
 		return nil
 	}
-	// Stash positional args globally for run() via leftover().
 	leftoverArgs = fs.Args()
 	return f
 }
@@ -199,6 +233,7 @@ TARGET is user@host or an ssh_config alias. FILE, when given, is sent instead
 of the clipboard contents.
 
 Flags:
+  -P, --profile NAME        Config profile name (overrides CLIPSH_PROFILE env)
   -H, --host TARGET         SSH target (alternative to positional)
   -p, --port N              SSH port
   -i, --identity PATH       SSH identity file
@@ -207,6 +242,8 @@ Flags:
   -r, --remote-path TMPL    Remote path template with {timestamp}, {ext},
                             {basename}, {hostname}, {user}, {random}
                             (default: /tmp/clipsh-{timestamp}.{ext})
+      --hook SPEC           Post-upload hook: tmux:<session> | exec:<cmd>
+                            (use {path} in exec for the uploaded path)
       --source auto|clip|file  Force content source (default: auto)
       --no-copy             Do not copy remote path to local clipboard
   -n, --dry-run             Print plan, do nothing
@@ -215,10 +252,12 @@ Flags:
       --help                Show this help
 
 Examples:
-  clipsh user@myvm                  # send clipboard image or text
-  clipsh user@myvm ./report.pdf     # send a file
-  clipsh -p 2222 user@box           # non-standard SSH port
-  clipsh -n user@myvm               # dry-run: show what would happen`)
+  clipsh user@myvm                       # send clipboard image or text
+  clipsh user@myvm ./report.pdf          # send a file
+  clipsh -p 2222 user@box                # non-standard SSH port
+  clipsh -P dev                          # use 'dev' profile from ~/.config/clipsh/config.toml
+  clipsh -P dev --hook tmux:main         # profile + ad-hoc hook override
+  clipsh -n user@myvm                    # dry-run: show what would happen`)
 }
 
 // readSource returns the bytes to upload, the file extension (without dot),
@@ -252,26 +291,17 @@ func readSource(fileArg, srcMode string) ([]byte, string, string, error) {
 	return c.Bytes, c.Extension, "clipboard", nil
 }
 
-func pickTmpl(user string) string {
-	if user != "" {
-		return user
-	}
-	return defaultPathTmpl
-}
-
-// looksLikeSSHTarget is a heuristic: "user@host" or a hostname with a dot or
-// known alias pattern. Anything else is treated as a file.
+// looksLikeSSHTarget is a heuristic: "user@host" or a single bare hostname
+// token that doesn't exist as a local file.
 func looksLikeSSHTarget(s string) bool {
 	if strings.Contains(s, "@") {
 		return true
 	}
-	// Treat as target if it's a single token with no path separators AND
-	// not obviously a local file.
 	if strings.ContainsAny(s, "/\\") {
 		return false
 	}
 	if _, err := os.Stat(s); err == nil {
-		return false // exists locally → file
+		return false
 	}
 	return true
 }
@@ -285,4 +315,38 @@ func signalContext() (context.Context, context.CancelFunc) {
 		cancel()
 	}()
 	return ctx, cancel
+}
+
+func firstNonEmpty(vs ...string) string {
+	for _, v := range vs {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func firstNonZero(vs ...int) int {
+	for _, v := range vs {
+		if v != 0 {
+			return v
+		}
+	}
+	return 0
+}
+
+// mergeSSHOpts concatenates CLI-given -o options with profile-given ones.
+// CLI first, then profile — duplicates are kept (ssh applies them left-to-
+// right and later values win, matching our flag > profile precedence).
+func mergeSSHOpts(cli []string, profile []string) []string {
+	if len(cli) == 0 {
+		return profile
+	}
+	if len(profile) == 0 {
+		return cli
+	}
+	out := make([]string, 0, len(cli)+len(profile))
+	out = append(out, profile...)
+	out = append(out, cli...) // CLI wins via later position
+	return out
 }

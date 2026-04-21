@@ -51,9 +51,47 @@ func Upload(ctx context.Context, opts Options, remotePath string, data io.Reader
 	return nil
 }
 
+// Exec runs an arbitrary command on opts.Host over SSH. The remoteCmd string
+// is passed verbatim to ssh — callers are responsible for shell-quoting.
+func Exec(ctx context.Context, opts Options, remoteCmd string) error {
+	if opts.Host == "" {
+		return fmt.Errorf("transport: Host is required")
+	}
+	args := BuildExecArgs(opts, remoteCmd)
+
+	cmd := exec.CommandContext(ctx, "ssh", args...)
+	var errBuf stderrBuffer
+	cmd.Stderr = &errBuf
+
+	if opts.Verbose {
+		fmt.Fprintf(errBuf.Tee(), "+ ssh %v\n", args)
+	}
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ssh exec failed: %w\n%s", err, errBuf.String())
+	}
+	return nil
+}
+
 // BuildArgs returns the argv for `ssh` given opts and remotePath. Exposed
 // for testing.
 func BuildArgs(opts Options, remotePath string) []string {
+	args := sshBaseArgs(opts)
+	args = append(args, opts.Host, "cat > "+shellQuote(remotePath))
+	return args
+}
+
+// BuildExecArgs returns the argv for `ssh` that runs an arbitrary remote
+// command. Exposed for testing.
+func BuildExecArgs(opts Options, remoteCmd string) []string {
+	args := sshBaseArgs(opts)
+	args = append(args, opts.Host, remoteCmd)
+	return args
+}
+
+// sshBaseArgs is the common prefix (port/identity/jump/opts) shared by the
+// Upload and Exec codepaths.
+func sshBaseArgs(opts Options) []string {
 	var args []string
 	if opts.Port != 0 {
 		args = append(args, "-p", strconv.Itoa(opts.Port))
@@ -67,7 +105,6 @@ func BuildArgs(opts Options, remotePath string) []string {
 	for _, o := range opts.SSHOpts {
 		args = append(args, "-o", o)
 	}
-	args = append(args, opts.Host, "cat > "+shellQuote(remotePath))
 	return args
 }
 
