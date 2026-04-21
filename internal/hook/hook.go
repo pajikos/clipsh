@@ -4,14 +4,17 @@
 //
 // Supported kinds:
 //
-//	tmux:<session>         — type `/image <path>` into session <session> on
-//	                         the remote tmux server WITHOUT pressing Enter.
-//	                         The text lands in the focused pane's prompt so
-//	                         the user can review, edit, or add context before
-//	                         submitting. Safer default.
+//	tmux:<session>         — type the uploaded path into session <session>
+//	                         on the remote tmux server WITHOUT pressing
+//	                         Enter. The path lands in the focused pane's
+//	                         prompt; the user prefixes it with whatever
+//	                         command the target tool expects (e.g. '@' in
+//	                         Claude Code, ':e ' in vim) and submits. Safer
+//	                         and tool-agnostic default.
 //	tmux-submit:<session>  — like tmux: but also sends Enter after typing.
-//	                         Use this only for tools that won't execute
-//	                         destructively on implicit submit.
+//	                         Submits the bare path as-is; useful only for
+//	                         tools that treat a raw path as meaningful
+//	                         input.
 //	exec:<command>         — run an arbitrary remote command. The literal
 //	                         token {path} in <command> is substituted with
 //	                         the shell-quoted uploaded path.
@@ -49,19 +52,17 @@ func Run(ctx context.Context, opts transport.Options, spec, remotePath string) e
 	}
 }
 
-// BuildTmuxCommand is the shell command run on the remote to inject
-// "/image <remotePath>" into tmux session <session>. If submit is true, an
-// Enter key is appended; otherwise the text is typed and left unsent.
-// Exposed for testing.
+// BuildTmuxCommand is the shell command run on the remote to type the
+// uploaded path into tmux session <session>. If submit is true, an Enter
+// key is appended; otherwise the path is typed and left unsent for the
+// user to prefix and submit. Exposed for testing.
 func BuildTmuxCommand(session, remotePath string, submit bool) string {
-	// send-keys -l (literal) types the command text without key-name
-	// interpretation, so a ';' in the path is safe. Enter is a separate
-	// call because mixing literal text and named keys in one invocation is
-	// fragile.
-	payload := "/image " + remotePath
+	// send-keys -l (literal) types the text without key-name interpretation,
+	// so a ';' in the path is safe. Enter is a separate call because mixing
+	// literal text and named keys in one invocation is fragile.
 	cmd := fmt.Sprintf(
 		"tmux send-keys -l -t %s %s",
-		shellQuote(session), shellQuote(payload),
+		shellQuote(session), shellQuote(remotePath),
 	)
 	if submit {
 		cmd += fmt.Sprintf(" && tmux send-keys -t %s Enter", shellQuote(session))

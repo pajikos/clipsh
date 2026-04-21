@@ -12,6 +12,9 @@ type Content struct {
 	Bytes     []byte
 	MIME      string // "image/png", "image/jpeg", "text/plain", ...
 	Extension string // "png", "jpg", "txt", ...
+	Basename  string // original file stem when the clipboard held a file
+	//                  reference (e.g. "report" for report.pdf). Empty when
+	//                  the source is a raw image or text clipboard.
 }
 
 // ErrEmpty is returned by Read when no content is available.

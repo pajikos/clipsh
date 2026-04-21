@@ -10,18 +10,21 @@ import (
 
 func TestBuildTmuxCommand_NoSubmit(t *testing.T) {
 	got := BuildTmuxCommand("main", "/tmp/x.png", false)
-	want := `tmux send-keys -l -t 'main' '/image /tmp/x.png'`
+	want := `tmux send-keys -l -t 'main' '/tmp/x.png'`
 	if got != want {
 		t.Errorf("\n  got:  %s\n  want: %s", got, want)
 	}
 	if strings.Contains(got, "Enter") {
 		t.Errorf("no-submit build should not include Enter: %q", got)
 	}
+	if strings.Contains(got, "/image") {
+		t.Errorf("tmux hook should not prepend /image: %q", got)
+	}
 }
 
 func TestBuildTmuxCommand_Submit(t *testing.T) {
 	got := BuildTmuxCommand("main", "/tmp/x.png", true)
-	want := `tmux send-keys -l -t 'main' '/image /tmp/x.png' && tmux send-keys -t 'main' Enter`
+	want := `tmux send-keys -l -t 'main' '/tmp/x.png' && tmux send-keys -t 'main' Enter`
 	if got != want {
 		t.Errorf("\n  got:  %s\n  want: %s", got, want)
 	}

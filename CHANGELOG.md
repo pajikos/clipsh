@@ -8,13 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed (BREAKING)
-- `tmux:<session>` hook no longer sends `Enter` after typing the
-  `/image <path>` text. It now **types only**, leaving the command in
-  the pane's prompt for the user to review / edit / submit manually.
-  Rationale: auto-submitting into an interactive AI prompt can dispatch
-  a command the user didn't intend to commit.
+- `tmux:<session>` hook no longer sends `Enter` after typing. It now
+  **types only**, leaving the text in the pane's prompt for the user
+  to review / edit / submit manually. Rationale: auto-submitting into
+  an interactive AI prompt can dispatch a command the user didn't
+  intend to commit.
+- `tmux:<session>` hook no longer prepends `/image ` either — it types
+  just the uploaded path, making it tool-agnostic. Users prefix with
+  whatever their target expects (`@path` in Claude Code, `:e path` in
+  vim, a bare path for a shell).
 - Added `tmux-submit:<session>` for the previous (type + Enter)
   behavior when callers explicitly want it.
+
+### Added
+- macOS clipboard now prefers a **file URL** (Finder Cmd+C, drag-drop)
+  over the rendered image representation. Uploads the original file
+  bytes with the real extension (`report.pdf` stays a PDF instead of
+  becoming a rendered PNG).
+- `{basename}` in remote-path templates now resolves to the original
+  filename stem when the clipboard held a file reference (e.g.
+  `report` for `report.pdf`). Falls back to `"clipboard"` for raw
+  image/text clipboards.
 
 ### Fixed
 - macOS: when the clipboard holds only an image and `pngpaste` is not

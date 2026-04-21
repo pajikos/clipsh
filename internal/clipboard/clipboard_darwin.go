@@ -6,16 +6,32 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
-// Read captures the macOS clipboard, preferring images.
+// Read captures the macOS clipboard.
 //
-// Falls through to text when the clipboard has no image. A missing pngpaste
-// helper also triggers the text fallback — but if text is empty too, we
-// surface the tool-missing hint rather than a confusing "clipboard is empty"
-// (the image is likely there, we just can't read it).
+// Priority:
+//  1. File URL (Finder Cmd+C, drag-drop) — read the actual file with its
+//     real extension. Takes precedence because the clipboard may also
+//     expose a rendered image representation of the file, which is
+//     usually not what the user wants.
+//  2. Image (pngpaste).
+//  3. Text (pbpaste).
+//
+// When the image helper is missing AND text is empty, surface the tool-
+// missing hint rather than "clipboard is empty" — the image is probably
+// there, we just can't read it.
 func Read() (*Content, error) {
+	if f, err := readFileURL(); err == nil {
+		return f, nil
+	} else if !errors.Is(err, ErrEmpty) {
+		return nil, err
+	}
+
 	img, imgErr := readImage()
 	if imgErr == nil {
 		return img, nil
@@ -59,6 +75,41 @@ func readImage() (*Content, error) {
 		return nil, ErrEmpty
 	}
 	return &Content{Bytes: out, MIME: "image/png", Extension: "png"}, nil
+}
+
+// readFileURL checks whether the clipboard holds a file reference (Finder
+// Cmd+C, drag-drop) and, if so, reads that file. Returns ErrEmpty when the
+// clipboard does not hold a file URL.
+func readFileURL() (*Content, error) {
+	// osascript exits non-zero with "Can't make some data into the expected
+	// type" when the clipboard doesn't hold an alias/file reference — that
+	// is the path we follow on every non-file clipboard (text, plain image,
+	// empty).
+	out, err := exec.Command("osascript", "-e",
+		`POSIX path of (the clipboard as alias)`).Output()
+	if err != nil {
+		return nil, ErrEmpty
+	}
+	path := strings.TrimSpace(string(out))
+	if path == "" {
+		return nil, ErrEmpty
+	}
+	data, err := os.ReadFile(path) // #nosec G304 - path comes from the user's own clipboard
+	if err != nil {
+		return nil, fmt.Errorf("read clipboard file %s: %w", path, err)
+	}
+	base := filepath.Base(path)
+	ext := strings.TrimPrefix(filepath.Ext(base), ".")
+	if ext == "" {
+		ext = "bin"
+	}
+	stem := strings.TrimSuffix(base, "."+ext)
+	return &Content{
+		Bytes:     data,
+		MIME:      "application/octet-stream",
+		Extension: ext,
+		Basename:  stem,
+	}, nil
 }
 
 func readText() (*Content, error) {

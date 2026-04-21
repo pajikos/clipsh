@@ -288,7 +288,11 @@ func readSource(fileArg, srcMode string) ([]byte, string, string, error) {
 	if err != nil {
 		return nil, "", "", err
 	}
-	return c.Bytes, c.Extension, "clipboard", nil
+	basename := c.Basename
+	if basename == "" {
+		basename = "clipboard"
+	}
+	return c.Bytes, c.Extension, basename, nil
 }
 
 // looksLikeSSHTarget is a heuristic: "user@host" or a single bare hostname
