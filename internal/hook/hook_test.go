@@ -8,8 +8,19 @@ import (
 	"github.com/pajikos/clipsh/internal/transport"
 )
 
-func TestBuildTmuxCommand(t *testing.T) {
-	got := BuildTmuxCommand("main", "/tmp/x.png")
+func TestBuildTmuxCommand_NoSubmit(t *testing.T) {
+	got := BuildTmuxCommand("main", "/tmp/x.png", false)
+	want := `tmux send-keys -l -t 'main' '/image /tmp/x.png'`
+	if got != want {
+		t.Errorf("\n  got:  %s\n  want: %s", got, want)
+	}
+	if strings.Contains(got, "Enter") {
+		t.Errorf("no-submit build should not include Enter: %q", got)
+	}
+}
+
+func TestBuildTmuxCommand_Submit(t *testing.T) {
+	got := BuildTmuxCommand("main", "/tmp/x.png", true)
 	want := `tmux send-keys -l -t 'main' '/image /tmp/x.png' && tmux send-keys -t 'main' Enter`
 	if got != want {
 		t.Errorf("\n  got:  %s\n  want: %s", got, want)
@@ -17,7 +28,7 @@ func TestBuildTmuxCommand(t *testing.T) {
 }
 
 func TestBuildTmuxCommand_SingleQuoteInPath(t *testing.T) {
-	got := BuildTmuxCommand("main", "/tmp/it's.png")
+	got := BuildTmuxCommand("main", "/tmp/it's.png", false)
 	// Single quote must be escaped as '\'' inside the single-quoted payload.
 	if !strings.Contains(got, `'\''`) {
 		t.Errorf("single quote not escaped: %q", got)
@@ -62,6 +73,13 @@ func TestRun_UnknownKind(t *testing.T) {
 
 func TestRun_TmuxNeedsSession(t *testing.T) {
 	err := Run(context.Background(), transport.Options{Host: "h"}, "tmux:", "/p")
+	if err == nil || !strings.Contains(err.Error(), "session") {
+		t.Errorf("expected session-required error, got %v", err)
+	}
+}
+
+func TestRun_TmuxSubmitNeedsSession(t *testing.T) {
+	err := Run(context.Background(), transport.Options{Host: "h"}, "tmux-submit:", "/p")
 	if err == nil || !strings.Contains(err.Error(), "session") {
 		t.Errorf("expected session-required error, got %v", err)
 	}

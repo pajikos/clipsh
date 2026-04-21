@@ -4,12 +4,17 @@
 //
 // Supported kinds:
 //
-//	tmux:<session>     — run `tmux send-keys -t <session> '/image <path>' Enter`
-//	                     on the remote. Types the /image command into whatever
-//	                     interactive tool is listening in that pane.
-//	exec:<command>     — run an arbitrary remote command. The literal token
-//	                     {path} in <command> is substituted with the shell-
-//	                     quoted uploaded path.
+//	tmux:<session>         — type `/image <path>` into session <session> on
+//	                         the remote tmux server WITHOUT pressing Enter.
+//	                         The text lands in the focused pane's prompt so
+//	                         the user can review, edit, or add context before
+//	                         submitting. Safer default.
+//	tmux-submit:<session>  — like tmux: but also sends Enter after typing.
+//	                         Use this only for tools that won't execute
+//	                         destructively on implicit submit.
+//	exec:<command>         — run an arbitrary remote command. The literal
+//	                         token {path} in <command> is substituted with
+//	                         the shell-quoted uploaded path.
 //
 // Unknown kinds are an error — hooks are user-typed, so fail loud.
 package hook
@@ -34,25 +39,34 @@ func Run(ctx context.Context, opts transport.Options, spec, remotePath string) e
 	}
 	switch kind {
 	case "tmux":
-		return runTmux(ctx, opts, payload, remotePath)
+		return runTmux(ctx, opts, payload, remotePath, false)
+	case "tmux-submit":
+		return runTmux(ctx, opts, payload, remotePath, true)
 	case "exec":
 		return runExec(ctx, opts, payload, remotePath)
 	default:
-		return fmt.Errorf("hook: unknown kind %q (want tmux|exec)", kind)
+		return fmt.Errorf("hook: unknown kind %q (want tmux|tmux-submit|exec)", kind)
 	}
 }
 
 // BuildTmuxCommand is the shell command run on the remote to inject
-// "/image <remotePath>" into tmux session <session>. Exposed for testing.
-func BuildTmuxCommand(session, remotePath string) string {
-	// Two send-keys invocations: first -l (literal) types the command text
-	// without key-name interpretation (so a ';' in the path is safe); the
-	// second submits Enter as a named key.
+// "/image <remotePath>" into tmux session <session>. If submit is true, an
+// Enter key is appended; otherwise the text is typed and left unsent.
+// Exposed for testing.
+func BuildTmuxCommand(session, remotePath string, submit bool) string {
+	// send-keys -l (literal) types the command text without key-name
+	// interpretation, so a ';' in the path is safe. Enter is a separate
+	// call because mixing literal text and named keys in one invocation is
+	// fragile.
 	payload := "/image " + remotePath
-	return fmt.Sprintf(
-		"tmux send-keys -l -t %s %s && tmux send-keys -t %s Enter",
-		shellQuote(session), shellQuote(payload), shellQuote(session),
+	cmd := fmt.Sprintf(
+		"tmux send-keys -l -t %s %s",
+		shellQuote(session), shellQuote(payload),
 	)
+	if submit {
+		cmd += fmt.Sprintf(" && tmux send-keys -t %s Enter", shellQuote(session))
+	}
+	return cmd
 }
 
 // BuildExecCommand substitutes {path} in the user-supplied command. Exposed
@@ -61,11 +75,11 @@ func BuildExecCommand(userCmd, remotePath string) string {
 	return strings.ReplaceAll(userCmd, "{path}", shellQuote(remotePath))
 }
 
-func runTmux(ctx context.Context, opts transport.Options, session, path string) error {
+func runTmux(ctx context.Context, opts transport.Options, session, path string, submit bool) error {
 	if session == "" {
 		return fmt.Errorf("hook: tmux hook needs a session name")
 	}
-	return transport.Exec(ctx, opts, BuildTmuxCommand(session, path))
+	return transport.Exec(ctx, opts, BuildTmuxCommand(session, path, submit))
 }
 
 func runExec(ctx context.Context, opts transport.Options, userCmd, path string) error {

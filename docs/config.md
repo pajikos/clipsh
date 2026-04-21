@@ -112,7 +112,8 @@ single invocation.
 
 | Form | Effect |
 |---|---|
-| `tmux:<session>` | Run `tmux send-keys -t <session> '/image <path>' Enter` on the remote after upload. Types the `/image` command into an attached terminal prompt. |
+| `tmux:<session>` | Type `/image <path>` into session `<session>` on the remote tmux server **without pressing Enter**. The text lands in the focused pane's prompt so you can review, edit, or add context before submitting. Safer default. |
+| `tmux-submit:<session>` | Like `tmux:` but also sends `Enter` after typing. Use this only when the target tool won't take destructive action on implicit submit. |
 | `exec:<cmd>` | Run an arbitrary remote command. The literal token `{path}` in `<cmd>` is substituted with the shell-quoted uploaded path. |
 
 Hooks run as a separate SSH session after the upload completes. A hook
@@ -146,9 +147,10 @@ hook = "tmux:main"
 clipsh
 ```
 
-No path typing, no paste — the remote tmux session `main` receives
-`/image /home/me/.clipboard.png` + Enter, and whatever is listening in
-that pane ingests the image immediately.
+No path typing, no paste — the remote tmux session `main` sees
+`/image /home/me/.clipboard.png` typed into its focused pane. Press
+Enter yourself when you're ready to submit (or use `tmux-submit:main`
+to auto-submit, if that's safe for the target tool).
 
 !!! note "Requires a running tmux server"
     The hook fails if no tmux server is running on the remote (you'll see

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (BREAKING)
+- `tmux:<session>` hook no longer sends `Enter` after typing the
+  `/image <path>` text. It now **types only**, leaving the command in
+  the pane's prompt for the user to review / edit / submit manually.
+  Rationale: auto-submitting into an interactive AI prompt can dispatch
+  a command the user didn't intend to commit.
+- Added `tmux-submit:<session>` for the previous (type + Enter)
+  behavior when callers explicitly want it.
+
 ### Fixed
 - macOS: when the clipboard holds only an image and `pngpaste` is not
   installed, surface an actionable error (*"clipboard has no text, and
