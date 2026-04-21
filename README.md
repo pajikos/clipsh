@@ -14,7 +14,9 @@ Paste that path straight into a terminal app running on the remote (an
 editor, an interactive AI prompt, a chat client) without juggling `scp`
 commands.
 
-<!-- TODO: replace with an asciinema / GIF demo of the end-to-end flow -->
+![clipsh demo](./docs/demo.gif)
+
+_Rendered from [`docs/demo.tape`](./docs/demo.tape) with [vhs](https://github.com/charmbracelet/vhs)._
 
 ## Install
 
