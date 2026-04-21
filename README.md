@@ -98,7 +98,7 @@ and press Enter.
 
 ## Features
 
-- **Source auto-detection:** Finder files / drag-drop, PNG/JPEG/HEIC/WebP screenshots, text — in that priority.
+- **Source auto-detection:** Finder-copied files (Cmd+C or right-click Copy), PNG/JPEG/HEIC/WebP screenshots on the clipboard, text — in that priority. Dragging a file onto the terminal inserts its path as text; pair with `clipsh user@host <drag>` to upload via the positional file argument.
 - **SSH via `~/.ssh/config` aliases** — port, identity, ProxyJump, options all resolve normally.
 - **Remote path templates** with `{timestamp}`, `{ext}`, `{basename}`, `{hostname}`, `{user}`, `{random}`.
 - **Named profiles** in `~/.config/clipsh/config.toml`; override any field with a flag.
