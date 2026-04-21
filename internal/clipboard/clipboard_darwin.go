@@ -78,15 +78,37 @@ func readImage() (*Content, error) {
 }
 
 // readFileURL checks whether the clipboard holds a file reference (Finder
-// Cmd+C, drag-drop) and, if so, reads that file. Returns ErrEmpty when the
-// clipboard does not hold a file URL.
+// Cmd+C, right-click Copy, drag-drop) and, if so, reads that file.
+// Returns ErrEmpty when the clipboard does not hold a file URL.
+//
+// Finder's Copy writes a «class furl» (public.file-url) item to the
+// pasteboard; a programmatic `POSIX file` sets an `alias` item. We check
+// `clipboard info` first for either class name — AppleScript's coercions
+// are too permissive (they will fabricate a fake path from plain text
+// like "just some words" → "/just some words"), so an explicit class
+// probe is the only reliable gate.
 func readFileURL() (*Content, error) {
-	// osascript exits non-zero with "Can't make some data into the expected
-	// type" when the clipboard doesn't hold an alias/file reference — that
-	// is the path we follow on every non-file clipboard (text, plain image,
-	// empty).
-	out, err := exec.Command("osascript", "-e",
-		`POSIX path of (the clipboard as alias)`).Output()
+	info, err := exec.Command("osascript", "-e", "clipboard info").Output()
+	if err != nil {
+		return nil, ErrEmpty
+	}
+	infoStr := string(info)
+	hasFurl := strings.Contains(infoStr, "furl")
+	hasAlias := strings.Contains(infoStr, "alis")
+	if !hasFurl && !hasAlias {
+		return nil, ErrEmpty
+	}
+
+	const script = `try
+	return POSIX path of (the clipboard as «class furl»)
+on error
+	try
+		return POSIX path of (the clipboard as alias)
+	on error
+		return ""
+	end try
+end try`
+	out, err := exec.Command("osascript", "-e", script).Output()
 	if err != nil {
 		return nil, ErrEmpty
 	}
