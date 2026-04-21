@@ -3,10 +3,13 @@
 # Run:
 #   vhs docs/demo.tape
 #
-# Produces docs/demo.gif — a scripted, deterministic tour of the common
-# invocations. No real SSH target is required; every command runs with
-# --dry-run so the output is the "would upload" plan instead of an
-# actual network round-trip.
+# Produces docs/demo.gif. To rebuild, you need:
+#   - a reachable SSH alias named dev.local (any host that accepts a
+#     Cmd+C-style upload is fine; the default /tmp path will be used)
+#   - vhs + ttyd installed
+#
+# The tape isolates XDG_CONFIG_HOME so your real ~/.config/clipsh/config.toml
+# (profile, hook, template) has no effect on the recording.
 
 Output docs/demo.gif
 
@@ -18,34 +21,29 @@ Set Padding 16
 Set Theme "Dracula"
 Set TypingSpeed 40ms
 
-# Seed the text clipboard for step 2.
+Env XDG_CONFIG_HOME "/tmp/clipsh-vhs-demo"
+
+# Isolate config, seed a text clipboard, clear the screen.
 Hide
-Type `printf 'Hello from the clipboard' | pbcopy`
+Type `rm -rf /tmp/clipsh-vhs-demo && mkdir -p /tmp/clipsh-vhs-demo`
+Enter
+Type `printf 'Hello from clipsh!' | pbcopy`
+Enter
+Type "clear"
 Enter
 Show
 
-# 1. Version
-Type "clipsh --version"
-Sleep 400ms
+# 1. Simplest possible invocation: send whatever is on the clipboard.
+Type "clipsh dev.local"
+Sleep 500ms
 Enter
-Sleep 900ms
+Sleep 2200ms
 
-# 2. Dry-run with text clipboard
-Type "clipsh -n user@dev.example.com"
-Sleep 400ms
+# 2. Upload a file by name — original name and extension are preserved
+# via the {basename}.{ext} default-path behavior.
+Type "clipsh -r '/tmp/{basename}.{ext}' dev.local ./README.md"
+Sleep 500ms
 Enter
-Sleep 1200ms
-
-# 3. Template with placeholders, ad-hoc hook
-Type "clipsh -n -r '/uploads/{hostname}-{random}.{ext}' --hook tmux:main user@dev"
-Sleep 400ms
-Enter
-Sleep 1400ms
-
-# 4. Explicit file argument — filename + extension are preserved
-Type "clipsh -n user@dev.example.com ./README.md"
-Sleep 400ms
-Enter
-Sleep 1400ms
+Sleep 2500ms
 
 Sleep 800ms
