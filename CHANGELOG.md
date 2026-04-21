@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- macOS: when the clipboard holds only an image and `pngpaste` is not
+  installed, surface an actionable error (*"clipboard has no text, and
+  pngpaste is not installed — if the clipboard holds an image, install
+  it with: brew install pngpaste"*) instead of the misleading
+  *"clipboard is empty"*.
+
 ## [0.2.0] - 2026-04-21
 
 ### Added

@@ -5,24 +5,37 @@ package clipboard
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os/exec"
 )
 
 // Read captures the macOS clipboard, preferring images.
 //
-// Falls through to text when the clipboard has no image OR when pngpaste is
-// not installed — text is always usable, so a missing optional helper must
-// not block the common case.
+// Falls through to text when the clipboard has no image. A missing pngpaste
+// helper also triggers the text fallback — but if text is empty too, we
+// surface the tool-missing hint rather than a confusing "clipboard is empty"
+// (the image is likely there, we just can't read it).
 func Read() (*Content, error) {
-	img, err := readImage()
-	if err == nil {
+	img, imgErr := readImage()
+	if imgErr == nil {
 		return img, nil
 	}
 	var tm *ErrToolMissing
-	if errors.Is(err, ErrEmpty) || errors.As(err, &tm) {
-		return readText()
+	toolMissing := errors.As(imgErr, &tm)
+	if errors.Is(imgErr, ErrEmpty) || toolMissing {
+		text, textErr := readText()
+		if textErr == nil {
+			return text, nil
+		}
+		if errors.Is(textErr, ErrEmpty) && toolMissing {
+			return nil, fmt.Errorf(
+				"clipboard has no text, and %s is not installed — if the clipboard holds an image, install it with: %s",
+				tm.Tool, tm.Hint,
+			)
+		}
+		return nil, textErr
 	}
-	return nil, err
+	return nil, imgErr
 }
 
 // Copy writes text to the macOS clipboard.
