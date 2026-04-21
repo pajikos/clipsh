@@ -1,17 +1,17 @@
 # Examples
 
-## Send a screenshot to Claude Code in a remote container
+## Send a screenshot to a remote terminal app
 
 ```sh
 clipsh -p 2222 \
   -o StrictHostKeyChecking=no \
-  -r '/home/vscode/repos/chargee/.clipboard.{ext}' \
-  vscode@container.local
+  -r '/home/me/.clipboard.{ext}' \
+  me@dev.example.com
 ```
 
-Then in the remote Claude Code session: type `/image` and paste the path from
-your clipboard, or rely on a named profile + hook to have it typed for you
-(see [Configuration](config.md)).
+Then in the remote terminal: type `/image` (or whatever the app expects)
+and paste the path from your clipboard. For a fully automated flow, pair
+this with a `tmux:` hook — see [Configuration](config.md).
 
 ## Send a file by name
 
@@ -24,7 +24,7 @@ The file extension drives `{ext}` in the remote path, so the upload lands at
 
 ## Use an SSH config alias
 
-```sh
+```sshconfig
 # ~/.ssh/config
 Host mybox
   HostName box.example.com

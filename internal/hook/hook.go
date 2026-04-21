@@ -5,8 +5,8 @@
 // Supported kinds:
 //
 //	tmux:<session>     — run `tmux send-keys -t <session> '/image <path>' Enter`
-//	                     on the remote. Types the /image command into an
-//	                     attached Claude Code / editor prompt.
+//	                     on the remote. Types the /image command into whatever
+//	                     interactive tool is listening in that pane.
 //	exec:<command>     — run an arbitrary remote command. The literal token
 //	                     {path} in <command> is substituted with the shell-
 //	                     quoted uploaded path.

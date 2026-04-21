@@ -17,8 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the config itself. Missing config file is not an error.
 - **Post-upload hooks.** Two forms:
   - `tmux:<session>` — runs `tmux send-keys -t <session> '/image <path>' Enter`
-    on the remote. Drives a Claude Code / editor prompt without a second
-    paste step.
+    on the remote. Drives whatever tool is listening in the pane (editor,
+    interactive AI prompt, chat client) without a second paste step.
   - `exec:<cmd>` — runs an arbitrary remote command; `{path}` expands to
     the shell-quoted uploaded path.
   Hook failures are logged but do not fail the overall command, since the

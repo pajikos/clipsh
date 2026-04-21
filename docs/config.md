@@ -7,24 +7,86 @@ every profile value is overridable on the command line.
 A missing config file is not an error. Profiles are purely an ergonomic
 shortcut — every field they set can also be passed as a flag.
 
-## Example
+## Recommended shape — defer to `~/.ssh/config`
+
+`clipsh` does not re-implement SSH — it shells out to the system `ssh(1)`
+binary. That means any alias defined in `~/.ssh/config` already works as a
+`host` value in a profile, and you only need to put **clipsh-specific**
+settings (remote path, hook) in the TOML.
+
+**`~/.ssh/config`** — the authoritative connection details:
+
+```sshconfig
+Host dev.local
+  HostName localhost
+  Port 2222
+  User me
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+
+Host prod
+  HostName prod.example.com
+  User deploy
+  ProxyJump bastion.example.com
+```
+
+**`~/.config/clipsh/config.toml`** — just the clipsh bits:
 
 ```toml
 default_profile = "dev"
 
 [profile.dev]
-host = "vscode@myvm.mesh"
-port = 2222
-identity = "~/.ssh/id_ed25519"
-remote_path = "/home/vscode/repos/myproject/.clipboard.{ext}"
-ssh_opts = ["StrictHostKeyChecking=no", "UserKnownHostsFile=/dev/null"]
+host = "dev.local"                                               # SSH alias
+remote_path = "/home/me/.clipboard.{ext}"
 hook = "tmux:main"
 
 [profile.prod]
-host = "deploy@prod.example.com"
-jump = "bastion.example.com"
+host = "prod"
 remote_path = "/srv/inbox/{user}-{timestamp}.{ext}"
 ```
+
+Benefits:
+
+- No duplicated port/user/identity/options between two configs.
+- `scp dev.local:path`, `ssh dev.local`, and `clipsh -P dev` all route the
+  same way — a single source of truth.
+- Adding a new host is one SSH config block + one TOML section, both short.
+
+## Profile fields
+
+| Field | CLI flag | Purpose |
+|---|---|---|
+| `host` | `-H`/`--host` (or positional) | SSH alias or `user@host` |
+| `port` | `-p`/`--port` | SSH port (when not using an alias) |
+| `identity` | `-i`/`--identity` | Path to private key |
+| `jump` | `-J`/`--jump` | ProxyJump host |
+| `ssh_opts` | `-o`/`--ssh-opt` (repeatable) | Extra `ssh -o KEY=VALUE` items |
+| `remote_path` | `-r`/`--remote-path` | Template with `{timestamp}`, `{ext}`, `{basename}`, `{hostname}`, `{user}`, `{random}` |
+| `hook` | `--hook` | Post-upload action (see Hooks below) |
+
+Anything you can put in `~/.ssh/config` (`ProxyCommand`, `ControlMaster`,
+`ForwardAgent`, `Include`, etc.) is inherited automatically when the host
+value names an alias. Keep those in `~/.ssh/config`; keep clipsh-specific
+behavior in the TOML.
+
+## Inline example — when SSH config isn't an option
+
+If you can't (or don't want to) edit `~/.ssh/config`, you can inline the
+connection settings in the profile:
+
+```toml
+[profile.dev-inline]
+host = "me@myvm.example.com"
+port = 2222
+identity = "~/.ssh/id_ed25519"
+ssh_opts = ["StrictHostKeyChecking=no", "UserKnownHostsFile=/dev/null"]
+remote_path = "/home/me/.clipboard.{ext}"
+hook = "tmux:main"
+```
+
+This works identically — it just duplicates what `~/.ssh/config` would
+otherwise hold.
 
 ## Resolution order
 
@@ -46,34 +108,50 @@ remote_path = "/srv/inbox/{user}-{timestamp}.{ext}"
 Flags never mutate the config file; they only override values for the
 single invocation.
 
-Flags always override profile values for that invocation.
-
 ## Hooks
 
 | Form | Effect |
 |---|---|
-| `tmux:<session>` | Run `tmux send-keys -t <session> '/image <path>' Enter` on the remote after upload. Types the `/image` command into an attached Claude Code or editor prompt. |
+| `tmux:<session>` | Run `tmux send-keys -t <session> '/image <path>' Enter` on the remote after upload. Types the `/image` command into an attached terminal prompt. |
 | `exec:<cmd>` | Run an arbitrary remote command. The literal token `{path}` in `<cmd>` is substituted with the shell-quoted uploaded path. |
 
 Hooks run as a separate SSH session after the upload completes. A hook
 failure does not fail the overall command — the file is already on the
 remote regardless.
 
-### Example: one-command screenshot to Claude Code
+### Example: one-command screenshot into a remote tmux session
 
+`~/.ssh/config`:
+```sshconfig
+Host dev.local
+  HostName localhost
+  Port 2222
+  User me
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+```
+
+`~/.config/clipsh/config.toml`:
 ```toml
-[profile.claude-dev]
-host = "vscode@devbox.mesh"
-port = 2222
-remote_path = "/home/vscode/repos/myproject/.clipboard.{ext}"
+default_profile = "dev"
+
+[profile.dev]
+host = "dev.local"
+remote_path = "/home/me/.clipboard.{ext}"
 hook = "tmux:main"
 ```
 
 ```sh
-# Screenshot → Cmd+Shift+Ctrl+4 (to clipboard), then:
-clipsh -P claude-dev
+# Screenshot → copy to clipboard, then:
+clipsh
 ```
 
 No path typing, no paste — the remote tmux session `main` receives
-`/image /home/vscode/repos/myproject/.clipboard.png` + Enter and Claude
-Code ingests the image immediately.
+`/image /home/me/.clipboard.png` + Enter, and whatever is listening in
+that pane ingests the image immediately.
+
+!!! note "Requires a running tmux server"
+    The hook fails if no tmux server is running on the remote (you'll see
+    `error connecting to /tmp/tmux-<uid>/default`). Attach once with
+    `ssh <host> -t tmux new -s <session>` to start the server; it persists
+    across SSH sessions after that.

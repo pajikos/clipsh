@@ -32,11 +32,11 @@ func TestLoadFrom_FullProfile(t *testing.T) {
 default_profile = "dev"
 
 [profile.dev]
-host = "vscode@myvm"
+host = "me@dev.example.com"
 port = 2222
 identity = "~/.ssh/id_ed25519"
 jump = "bastion"
-remote_path = "/home/vscode/.clipboard.{ext}"
+remote_path = "/home/me/.clipboard.{ext}"
 ssh_opts = ["StrictHostKeyChecking=no", "UserKnownHostsFile=/dev/null"]
 hook = "tmux:main"
 
@@ -56,11 +56,11 @@ host = "deploy@prod"
 
 	dev := cfg.ProfileOrEmpty("dev")
 	want := Profile{
-		Host:       "vscode@myvm",
+		Host:       "me@dev.example.com",
 		Port:       2222,
 		Identity:   "~/.ssh/id_ed25519",
 		Jump:       "bastion",
-		RemotePath: "/home/vscode/.clipboard.{ext}",
+		RemotePath: "/home/me/.clipboard.{ext}",
 		SSHOpts:    []string{"StrictHostKeyChecking=no", "UserKnownHostsFile=/dev/null"},
 		Hook:       "tmux:main",
 	}

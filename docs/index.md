@@ -4,8 +4,8 @@
 
 `clipsh` streams what's on your local clipboard (or a file you name) to a
 remote host over SSH, then copies the remote path back to your clipboard so
-you can paste it straight into a terminal-based tool — Claude Code, `vim`,
-a chat prompt running under tmux.
+you can paste it straight into a terminal-based tool — `vim`, an interactive
+AI prompt, a chat client running under tmux, anything that reads a file path.
 
 ## The 60-second demo
 
@@ -16,7 +16,7 @@ Path copied to clipboard — paste it directly.
 ```
 
 ```console
-$ clipsh -p 2222 -o StrictHostKeyChecking=no vscode@container.local ./report.pdf
+$ clipsh -p 2222 -o StrictHostKeyChecking=no me@dev.example.com ./report.pdf
 Uploaded: /tmp/clipsh-1713657611.pdf
 ```
 
@@ -28,7 +28,8 @@ Uploaded: /tmp/clipsh-1713657611.pdf
   `{basename}`, `{hostname}`, `{user}`, `{random}`.
 - **Named profiles** in `~/.config/clipsh/config.toml`.
 - Optional **post-upload hook** — auto-drive `tmux send-keys` on the remote
-  so Claude Code receives `/image <path>` without a second paste.
+  so the attached pane receives `/image <path>` (or any command) without a
+  second paste.
 - Pre-built binaries for macOS + Linux, installable via Homebrew tap.
 
 See [vs clipssh](vs-clipssh.md) for the full comparison.

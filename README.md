@@ -4,8 +4,8 @@
 
 `clipsh` takes what's on your local clipboard (or a file you name) and streams it
 to a remote host over SSH, then copies the remote path back to your clipboard so
-you can paste it straight into a terminal-based tool — Claude Code, `vim`, a
-chat prompt.
+you can paste it straight into a terminal-based tool — `vim`, an interactive AI
+prompt, a chat client — anything that reads a file path.
 
 ```
 $ clipsh user@myvm                 # send clipboard image (or text)
