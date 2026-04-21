@@ -6,14 +6,22 @@ run:
 linters:
   default: standard
   enable:
-    - errcheck
-    - gosec
     - gocritic
+    - gosec
     - misspell
     - revive
     - unconvert
-    - unused
-
-issues:
-  max-issues-per-linter: 0
-  max-same-issues: 0
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    gosec:
+      excludes:
+        # G204: we shell out to ssh with user-controlled args — that is the point
+        - G204
+        # G304: we read user-supplied file paths — that is the point
+        - G304
+        # G705: XSS via taint — we are a CLI printing to stdout, not serving HTML
+        - G705

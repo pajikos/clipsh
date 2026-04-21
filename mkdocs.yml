@@ -3,8 +3,8 @@ site_description: Clipboard transport over SSH
 site_url: https://pajikos.github.io/clipsh/
 repo_url: https://github.com/pajikos/clipsh
 repo_name: pajikos/clipsh
-docs_dir: .
-site_dir: ../site
+docs_dir: docs
+site_dir: site
 
 theme:
   name: material

@@ -1,4 +1,4 @@
-// Package template renders remote-path templates with named placeholders.
+// Package pathtmpl renders remote-path templates with named placeholders.
 //
 // A template is a string that may contain {placeholder} tokens. Supported
 // placeholders:
@@ -12,7 +12,10 @@
 //
 // Unknown placeholders produce an error rather than silently expanding to
 // empty — this protects users from typos in config.
-package template
+//
+// The package is named pathtmpl rather than "template" to avoid confusion
+// with the stdlib text/template / html/template packages.
+package pathtmpl
 
 import (
 	"crypto/rand"

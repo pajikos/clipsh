@@ -15,7 +15,7 @@ import (
 	"syscall"
 
 	"github.com/pajikos/clipsh/internal/clipboard"
-	"github.com/pajikos/clipsh/internal/template"
+	"github.com/pajikos/clipsh/internal/pathtmpl"
 	"github.com/pajikos/clipsh/internal/transport"
 )
 
@@ -100,9 +100,9 @@ func run(argv []string, stdout, stderr io.Writer) int {
 	}
 
 	// 2. Render remote path.
-	ctx := template.Context{Ext: ext, Basename: basename}
+	ctx := pathtmpl.Context{Ext: ext, Basename: basename}
 	ctx.Auto()
-	remotePath, err := template.Render(pickTmpl(f.remoteTmpl), ctx)
+	remotePath, err := pathtmpl.Render(pickTmpl(f.remoteTmpl), ctx)
 	if err != nil {
 		fmt.Fprintf(stderr, "clipsh: %v\n", err)
 		return 5
