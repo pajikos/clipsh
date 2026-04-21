@@ -1,0 +1,9 @@
+/clipsh
+/dist/
+/site/
+*.test
+*.out
+coverage.*
+.idea/
+.vscode/
+.DS_Store
