@@ -8,7 +8,7 @@ import (
 
 func TestBuildArgs_Minimal(t *testing.T) {
 	got := BuildArgs(Options{Host: "user@host"}, "/tmp/x.png")
-	want := []string{"user@host", "cat > '/tmp/x.png'"}
+	want := []string{"user@host", "mkdir -p '/tmp' && cat > '/tmp/x.png'"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("BuildArgs minimal:\n  got:  %q\n  want: %q", got, want)
 	}
@@ -30,7 +30,7 @@ func TestBuildArgs_AllOptions(t *testing.T) {
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"user@host",
-		"cat > '/tmp/x.png'",
+		"mkdir -p '/tmp' && cat > '/tmp/x.png'",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("BuildArgs full:\n  got:  %q\n  want: %q", got, want)
@@ -38,10 +38,11 @@ func TestBuildArgs_AllOptions(t *testing.T) {
 }
 
 func TestBuildArgs_QuotesPathWithSpaces(t *testing.T) {
-	got := BuildArgs(Options{Host: "h"}, "/tmp/my file.png")
+	got := BuildArgs(Options{Host: "h"}, "/tmp/my dir/my file.png")
 	last := got[len(got)-1]
-	if last != "cat > '/tmp/my file.png'" {
-		t.Errorf("path with space not single-quoted: %q", last)
+	want := "mkdir -p '/tmp/my dir' && cat > '/tmp/my dir/my file.png'"
+	if last != want {
+		t.Errorf("path with space not single-quoted:\n  got:  %q\n  want: %q", last, want)
 	}
 }
 
@@ -51,6 +52,17 @@ func TestBuildArgs_EscapesSingleQuote(t *testing.T) {
 	last := got[len(got)-1]
 	if !strings.Contains(last, `'\''`) {
 		t.Errorf("single quote not escaped in remote command: %q", last)
+	}
+}
+
+func TestBuildArgs_MkdirAlwaysPresent(t *testing.T) {
+	got := BuildArgs(Options{Host: "h"}, "/some/nested/path/file.bin")
+	last := got[len(got)-1]
+	if !strings.HasPrefix(last, "mkdir -p ") {
+		t.Errorf("remote command should begin with mkdir -p: %q", last)
+	}
+	if !strings.Contains(last, "'/some/nested/path'") {
+		t.Errorf("parent dir should be quoted and passed to mkdir: %q", last)
 	}
 }
 

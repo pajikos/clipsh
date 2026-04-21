@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Upload command now runs `mkdir -p <dir>` on the remote before writing
+  the file, so templates that point at a not-yet-existing directory
+  (e.g. a new project subdir) succeed without a separate provisioning
+  step.
+
 ### Changed (BREAKING)
 - `tmux:<session>` hook no longer sends `Enter` after typing. It now
   **types only**, leaving the text in the pane's prompt for the user

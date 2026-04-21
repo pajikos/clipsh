@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path"
 	"strconv"
 )
 
@@ -75,9 +76,17 @@ func Exec(ctx context.Context, opts Options, remoteCmd string) error {
 
 // BuildArgs returns the argv for `ssh` given opts and remotePath. Exposed
 // for testing.
+//
+// The remote command always runs `mkdir -p <dir>` before the stdin redirect,
+// so a template with a not-yet-existing directory (e.g. a new project
+// subdir) succeeds without a separate provisioning step. POSIX mkdir -p is
+// a no-op when the directory already exists.
 func BuildArgs(opts Options, remotePath string) []string {
 	args := sshBaseArgs(opts)
-	args = append(args, opts.Host, "cat > "+shellQuote(remotePath))
+	dir := path.Dir(remotePath)
+	remoteCmd := fmt.Sprintf("mkdir -p %s && cat > %s",
+		shellQuote(dir), shellQuote(remotePath))
+	args = append(args, opts.Host, remoteCmd)
 	return args
 }
 
