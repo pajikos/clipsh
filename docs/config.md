@@ -112,8 +112,10 @@ single invocation.
 
 | Form | Effect |
 |---|---|
-| `tmux:<session>` | Type `/image <path>` into session `<session>` on the remote tmux server **without pressing Enter**. The text lands in the focused pane's prompt so you can review, edit, or add context before submitting. Safer default. |
+| `tmux:<session>` | Type the uploaded path into session `<session>` on the remote tmux server **without pressing Enter**. The path lands in the focused pane's prompt; prefix it with whatever the target tool wants (`@` for Claude Code, `:e ` for vim, nothing for a bare shell) and submit yourself. Safer default. |
 | `tmux-submit:<session>` | Like `tmux:` but also sends `Enter` after typing. Use this only when the target tool won't take destructive action on implicit submit. |
+| `zellij:<session>` | Type the uploaded path into the focused pane of zellij session `<session>` **without pressing Enter**. Parallel to `tmux:`. |
+| `zellij-submit:<session>` | Like `zellij:` but also sends Enter (byte 13) after typing. |
 | `exec:<cmd>` | Run an arbitrary remote command. The literal token `{path}` in `<cmd>` is substituted with the shell-quoted uploaded path. |
 
 Hooks run as a separate SSH session after the upload completes. A hook
@@ -148,12 +150,20 @@ clipsh
 ```
 
 No path typing, no paste — the remote tmux session `main` sees
-`/image /home/me/.clipboard.png` typed into its focused pane. Press
-Enter yourself when you're ready to submit (or use `tmux-submit:main`
-to auto-submit, if that's safe for the target tool).
+`/home/me/.clipboard.png` typed into its focused pane. Prefix it with
+whatever the pane expects (`@` for Claude Code, `:e ` for vim, nothing
+for a bare shell), then press Enter (or use `tmux-submit:main` to
+auto-submit, if that's safe for the target tool).
 
 !!! note "Requires a running tmux server"
     The hook fails if no tmux server is running on the remote (you'll see
     `error connecting to /tmp/tmux-<uid>/default`). Attach once with
     `ssh <host> -t tmux new -s <session>` to start the server; it persists
     across SSH sessions after that.
+
+!!! note "Requires a running zellij session"
+    The hook fails (`zellij session not active: <name>`) if no zellij
+    session of that name is live on the remote. Attach once with
+    `ssh <host> -t zellij attach -c <session>` to create or resume it;
+    background zellij daemons persist between SSH sessions the same way
+    tmux servers do.
