@@ -76,6 +76,31 @@ func BuildExecCommand(userCmd, remotePath string) string {
 	return strings.ReplaceAll(userCmd, "{path}", shellQuote(remotePath))
 }
 
+// BuildZellijCommand is the shell command run on the remote to type the
+// uploaded path into the focused pane of zellij session <session>.
+//
+// It runs a list-sessions preflight before the write action because zellij
+// 0.44.2 exits 0 even when `action write-chars` targets a missing session;
+// transport.Exec only sees the remote command's exit status, so the
+// preflight forces a non-zero status when the session is missing or in the
+// resurrectable (EXITED) state. If submit is true, an additional invocation
+// writes byte 13 (CR) — the byte zellij itself uses for the Enter key.
+// Exposed for testing.
+func BuildZellijCommand(session, remotePath string, submit bool) string {
+	qSession := shellQuote(session)
+	preflight := "zellij list-sessions --no-formatting | awk -v s=" + qSession +
+		` '{ name=$0; sub(/ \[Created .*/, "", name); if (name == s && index($0, "(EXITED") == 0) found=1 } END { if (!found) { printf "zellij session not active: %s\n", s > "/dev/stderr"; exit 1 } }'`
+	write := fmt.Sprintf(
+		"zellij --session %s action write-chars %s",
+		qSession, shellQuote(remotePath),
+	)
+	cmd := preflight + " && " + write
+	if submit {
+		cmd += " && " + fmt.Sprintf("zellij --session %s action write 13", qSession)
+	}
+	return cmd
+}
+
 func runTmux(ctx context.Context, opts transport.Options, session, path string, submit bool) error {
 	if session == "" {
 		return fmt.Errorf("hook: tmux hook needs a session name")

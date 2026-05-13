@@ -94,3 +94,45 @@ func TestRun_ExecNeedsCommand(t *testing.T) {
 		t.Errorf("expected command-required error, got %v", err)
 	}
 }
+
+func TestBuildZellijCommand_NoSubmit(t *testing.T) {
+	got := BuildZellijCommand("main", "/tmp/x.png", false)
+	want := `zellij list-sessions --no-formatting | awk -v s='main' '{ name=$0; sub(/ \[Created .*/, "", name); if (name == s && index($0, "(EXITED") == 0) found=1 } END { if (!found) { printf "zellij session not active: %s\n", s > "/dev/stderr"; exit 1 } }' && zellij --session 'main' action write-chars '/tmp/x.png'`
+	if got != want {
+		t.Errorf("\n  got:  %s\n  want: %s", got, want)
+	}
+	if strings.Contains(got, "write 13") {
+		t.Errorf("no-submit build should not include write 13: %q", got)
+	}
+	if strings.Contains(got, "Enter") {
+		t.Errorf("no-submit build should not include Enter: %q", got)
+	}
+}
+
+func TestBuildZellijCommand_Submit(t *testing.T) {
+	got := BuildZellijCommand("main", "/tmp/x.png", true)
+	want := `zellij list-sessions --no-formatting | awk -v s='main' '{ name=$0; sub(/ \[Created .*/, "", name); if (name == s && index($0, "(EXITED") == 0) found=1 } END { if (!found) { printf "zellij session not active: %s\n", s > "/dev/stderr"; exit 1 } }' && zellij --session 'main' action write-chars '/tmp/x.png' && zellij --session 'main' action write 13`
+	if got != want {
+		t.Errorf("\n  got:  %s\n  want: %s", got, want)
+	}
+}
+
+func TestBuildZellijCommand_SingleQuoteInPath(t *testing.T) {
+	got := BuildZellijCommand("main", "/tmp/it's.png", false)
+	// Single quote must be escaped as '\'' inside the single-quoted payload.
+	if !strings.Contains(got, `'/tmp/it'\''s.png'`) {
+		t.Errorf("single quote in path not escaped: %q", got)
+	}
+}
+
+func TestBuildZellijCommand_SingleQuoteInSession(t *testing.T) {
+	got := BuildZellijCommand("it's", "/tmp/x.png", false)
+	// Session is interpolated in two positions: awk -v s=... and --session ...
+	// Both must use the '\'' escape.
+	if !strings.Contains(got, `awk -v s='it'\''s'`) {
+		t.Errorf("single quote in session not escaped in awk -v: %q", got)
+	}
+	if !strings.Contains(got, `--session 'it'\''s'`) {
+		t.Errorf("single quote in session not escaped in --session: %q", got)
+	}
+}
