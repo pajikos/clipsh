@@ -136,3 +136,17 @@ func TestBuildZellijCommand_SingleQuoteInSession(t *testing.T) {
 		t.Errorf("single quote in session not escaped in --session: %q", got)
 	}
 }
+
+func TestRun_ZellijNeedsSession(t *testing.T) {
+	err := Run(context.Background(), transport.Options{Host: "h"}, "zellij:", "/p")
+	if err == nil || !strings.Contains(err.Error(), "session") {
+		t.Errorf("expected session-required error, got %v", err)
+	}
+}
+
+func TestRun_ZellijSubmitNeedsSession(t *testing.T) {
+	err := Run(context.Background(), transport.Options{Host: "h"}, "zellij-submit:", "/p")
+	if err == nil || !strings.Contains(err.Error(), "session") {
+		t.Errorf("expected session-required error, got %v", err)
+	}
+}

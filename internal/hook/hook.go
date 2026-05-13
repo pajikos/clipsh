@@ -15,6 +15,12 @@
 //	                         Submits the bare path as-is; useful only for
 //	                         tools that treat a raw path as meaningful
 //	                         input.
+//	zellij:<session>       — type the uploaded path into the focused pane of
+//	                         zellij session <session>, WITHOUT pressing
+//	                         Enter. Same prefix-and-submit ergonomics as
+//	                         tmux:.
+//	zellij-submit:<session> — like zellij: but also sends Enter (byte 13)
+//	                         after typing.
 //	exec:<command>         — run an arbitrary remote command. The literal
 //	                         token {path} in <command> is substituted with
 //	                         the shell-quoted uploaded path.
@@ -45,10 +51,14 @@ func Run(ctx context.Context, opts transport.Options, spec, remotePath string) e
 		return runTmux(ctx, opts, payload, remotePath, false)
 	case "tmux-submit":
 		return runTmux(ctx, opts, payload, remotePath, true)
+	case "zellij":
+		return runZellij(ctx, opts, payload, remotePath, false)
+	case "zellij-submit":
+		return runZellij(ctx, opts, payload, remotePath, true)
 	case "exec":
 		return runExec(ctx, opts, payload, remotePath)
 	default:
-		return fmt.Errorf("hook: unknown kind %q (want tmux|tmux-submit|exec)", kind)
+		return fmt.Errorf("hook: unknown kind %q (want tmux|tmux-submit|zellij|zellij-submit|exec)", kind)
 	}
 }
 
@@ -113,6 +123,13 @@ func runExec(ctx context.Context, opts transport.Options, userCmd, path string) 
 		return fmt.Errorf("hook: exec hook needs a command")
 	}
 	return transport.Exec(ctx, opts, BuildExecCommand(userCmd, path))
+}
+
+func runZellij(ctx context.Context, opts transport.Options, session, path string, submit bool) error {
+	if session == "" {
+		return fmt.Errorf("hook: zellij hook needs a session name")
+	}
+	return transport.Exec(ctx, opts, BuildZellijCommand(session, path, submit))
 }
 
 // shellQuote wraps s in single quotes, escaping embedded single quotes with
