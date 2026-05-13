@@ -11,7 +11,7 @@ clipsh -p 2222 \
 
 Then in the remote terminal: type `/image` (or whatever the app expects)
 and paste the path from your clipboard. For a fully automated flow, pair
-this with a `tmux:` hook — see [Configuration](config.md).
+this with a `tmux:` or `zellij:` hook — see [Configuration](config.md).
 
 ## Send a file by name
 

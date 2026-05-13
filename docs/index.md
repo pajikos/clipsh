@@ -27,9 +27,9 @@ Uploaded: /tmp/clipsh-1713657611.pdf
 - Configurable **remote path templates** with `{timestamp}`, `{ext}`,
   `{basename}`, `{hostname}`, `{user}`, `{random}`.
 - **Named profiles** in `~/.config/clipsh/config.toml`.
-- Optional **post-upload hook** — auto-drive `tmux send-keys` on the remote
-  so the attached pane receives `/image <path>` (or any command) without a
-  second paste.
+- Optional **post-upload hook** — auto-drive `tmux send-keys` or
+  `zellij action write-chars` on the remote so the attached pane receives
+  the uploaded path (or any command) without a second paste.
 - Pre-built binaries for macOS + Linux, installable via Homebrew tap.
 
 See [vs clipssh](vs-clipssh.md) for the full comparison.

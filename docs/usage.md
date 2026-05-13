@@ -111,6 +111,12 @@ Use a profile, override the hook ad-hoc:
 clipsh -P dev --hook tmux-submit:main
 ```
 
+Same flow for zellij users:
+
+```sh
+clipsh -P dev --hook zellij:main
+```
+
 Force the source to text (useful when the clipboard also has a file
 reference you want to ignore):
 
