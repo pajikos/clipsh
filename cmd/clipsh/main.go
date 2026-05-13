@@ -201,7 +201,7 @@ func parseFlags(argv []string, stderr io.Writer) *flags {
 	fs.Var(&f.sshOpts, "ssh-opt", "Extra ssh -o KEY=VALUE (repeatable)")
 	fs.StringVar(&f.remoteTmpl, "r", "", "Remote path template (default: "+defaultPathTmpl+")")
 	fs.StringVar(&f.remoteTmpl, "remote-path", "", "Remote path template (default: "+defaultPathTmpl+")")
-	fs.StringVar(&f.hook, "hook", "", "Post-upload hook: tmux:<session> | exec:<cmd>")
+	fs.StringVar(&f.hook, "hook", "", "Post-upload hook: tmux:<s> | tmux-submit:<s> | zellij:<s> | zellij-submit:<s> | exec:<cmd>")
 	fs.StringVar(&f.source, "source", "auto", "Force source: auto|clip|file")
 	fs.BoolVar(&f.noCopy, "no-copy", false, "Do not copy remote path to local clipboard")
 	fs.BoolVar(&f.dryRun, "n", false, "Print what would happen, do nothing")
@@ -242,8 +242,10 @@ Flags:
   -r, --remote-path TMPL    Remote path template with {timestamp}, {ext},
                             {basename}, {hostname}, {user}, {random}
                             (default: /tmp/clipsh-{timestamp}.{ext})
-      --hook SPEC           Post-upload hook: tmux:<session> | exec:<cmd>
-                            (use {path} in exec for the uploaded path)
+      --hook SPEC           Post-upload hook:
+                            tmux:<s> | tmux-submit:<s> |
+                            zellij:<s> | zellij-submit:<s> |
+                            exec:<cmd>  (use {path} in exec for the path)
       --source auto|clip|file  Force content source (default: auto)
       --no-copy             Do not copy remote path to local clipboard
   -n, --dry-run             Print plan, do nothing
@@ -257,6 +259,7 @@ Examples:
   clipsh -p 2222 user@box                # non-standard SSH port
   clipsh -P dev                          # use 'dev' profile from ~/.config/clipsh/config.toml
   clipsh -P dev --hook tmux:main         # profile + ad-hoc hook override
+  clipsh -P dev --hook zellij:main       # ditto for zellij users
   clipsh -n user@myvm                    # dry-run: show what would happen`)
 }
 
