@@ -19,8 +19,8 @@
 //	                         zellij session <session>, WITHOUT pressing
 //	                         Enter. Same prefix-and-submit ergonomics as
 //	                         tmux:.
-//	zellij-submit:<session> — like zellij: but also sends Enter (byte 13)
-//	                         after typing.
+//	zellij-submit:<session>  — like zellij: but also sends Enter (byte 13)
+//	                          after typing.
 //	exec:<command>         — run an arbitrary remote command. The literal
 //	                         token {path} in <command> is substituted with
 //	                         the shell-quoted uploaded path.
