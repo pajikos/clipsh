@@ -274,7 +274,7 @@ With:
 fs.StringVar(&f.hook, "hook", "", "Post-upload hook: tmux:<s> | tmux-submit:<s> | zellij:<s> | zellij-submit:<s> | exec:<cmd>")
 ```
 
-This also fixes preexisting drift: `tmux-submit:` was dispatched but missing from the help string.
+Note: this string is **not rendered** by the binary at runtime. `main.go:188` overrides `fs.Usage` with the hardcoded block in the `usage()` function (lines 226-260), so `flag.PrintDefaults` is never called and the per-flag short description is dead text. Updating it anyway because (a) it's misleading drift for anyone reading the source, and (b) `tmux-submit:` was missing from it. The Step 2 change below is the one that affects what users see.
 
 - [ ] **Step 2: Update the long-form usage block (around lines 245-246)**
 
@@ -307,10 +307,15 @@ Insert a new line immediately after the existing `clipsh -P dev --hook tmux:main
 Run: `go build ./cmd/clipsh`
 Expected: silent success. No binary needs to be kept (delete the `clipsh` binary it produces if anything).
 
-- [ ] **Step 5: Spot-check `--help`**
+- [ ] **Step 5: Spot-check the rendered usage block**
 
-Run: `go run ./cmd/clipsh --help`
-Expected: the `--hook` lines render with the new kinds visible and the new example is in the list.
+Run: `go run ./cmd/clipsh --help 2>&1 | grep -A 3 -- '--hook'`
+Expected: the `--hook SPEC` long-form block (from Step 2) appears with `zellij:<s>` and `zellij-submit:<s>` listed. The output goes to stderr (`fs.SetOutput(stderr)` at `main.go:187`), so the `2>&1` is required — a stdout-only pipe captures nothing.
+
+Also verify the (non-rendered) short flag description was updated in source:
+
+Run: `grep -n 'Post-upload hook' cmd/clipsh/main.go`
+Expected: the `fs.StringVar` line lists all four `tmux:`/`zellij:` variants.
 
 - [ ] **Step 6: Commit**
 
@@ -394,9 +399,9 @@ Insert immediately after the tmux admonition (ends at line 159) — keep one bla
     tmux servers do.
 ```
 
-- [ ] **Step 5: Build the docs locally (sanity check)**
+- [ ] **Step 5: Sanity-check the rendered docs locally (optional)**
 
-Run: `task docs` if available, otherwise skip — the page renders via mkdocs-material on push. A markdown lint pass (`task lint`) is a reasonable substitute.
+Run: `task docs-serve &` then open `http://localhost:8000/config/`, visually confirm the Hooks table reads cleanly with the new rows and the corrected `tmux:` row. Kill the server when done. `task lint` does not lint markdown, so this manual pass is the only structural check.
 
 - [ ] **Step 6: Commit**
 
@@ -554,13 +559,20 @@ Expected: clean. If `golangci-lint` flags the new code, fix in place — do NOT 
 
 - [ ] **Step 3: Manual `--help` sanity check**
 
-Run: `go run ./cmd/clipsh --help | grep -A 4 -- '--hook'`
-Expected: both the short flag description and the long-form usage block list zellij kinds.
+Run: `go run ./cmd/clipsh --help 2>&1 | grep -A 4 -- '--hook'`
+Expected: the long-form usage block (from `cmd/clipsh/main.go:226-260`) lists the four `tmux:`/`zellij:` variants. The `2>&1` is required — the FlagSet's output is redirected to stderr at `main.go:187`. The short `fs.StringVar` description is dead text in this codebase (the custom `usage()` block doesn't call `flag.PrintDefaults`), so don't expect it in the rendered help.
 
 - [ ] **Step 4: Manual dry-run sanity check**
 
-Run: `go run ./cmd/clipsh -n --hook zellij:main user@nowhere</dev/null` (with something on the clipboard, or use `--source clip` and pipe via stdin if the harness supports it; otherwise skip).
-Expected: dry-run output contains `would run hook: zellij:main`.
+Run:
+
+```sh
+printf hi > /tmp/clipsh-zellij-smoke.txt
+go run ./cmd/clipsh -n --hook zellij:main user@nowhere /tmp/clipsh-zellij-smoke.txt
+rm /tmp/clipsh-zellij-smoke.txt
+```
+
+Expected stdout: two lines — `would upload 2 bytes (txt) to user@nowhere:/tmp/clipsh-<epoch>.txt` and `would run hook: zellij:main`. A positional file is used because `readSource` (`cmd/clipsh/main.go:266-296`) accepts only file or clipboard sources — there is no stdin path.
 
 - [ ] **Step 5: Verify spec coverage**
 
