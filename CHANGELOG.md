@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the file, so templates that point at a not-yet-existing directory
   (e.g. a new project subdir) succeed without a separate provisioning
   step.
+- `zellij:<session>` and `zellij-submit:<session>` post-upload hook
+  kinds, parallel to the existing `tmux:` pair. Drives
+  `zellij --session <s> action write-chars` over SSH, with a
+  `list-sessions` preflight so a missing or `EXITED` session surfaces
+  as a hook error (zellij 0.44.2 exits 0 from `action write-chars`
+  against a missing session, so an explicit preflight is required).
 
 ### Changed (BREAKING)
 - `tmux:<session>` hook no longer sends `Enter` after typing. It now
