@@ -65,10 +65,12 @@ Output:
 
 ```sh
 # zellij:<session>
-zellij --session 'main' action write-chars '/tmp/foo.png'
+zellij list-sessions --no-formatting | awk -v s='main' '{ name=$0; sub(/ \[Created .*/, "", name); if (name == s && index($0, "(EXITED") == 0) found=1 } END { if (!found) { printf "zellij session not active: %s\n", s > "/dev/stderr"; exit 1 } }' && \
+  zellij --session 'main' action write-chars '/tmp/foo.png'
 
 # zellij-submit:<session>
-zellij --session 'main' action write-chars '/tmp/foo.png' && \
+zellij list-sessions --no-formatting | awk -v s='main' '{ name=$0; sub(/ \[Created .*/, "", name); if (name == s && index($0, "(EXITED") == 0) found=1 } END { if (!found) { printf "zellij session not active: %s\n", s > "/dev/stderr"; exit 1 } }' && \
+  zellij --session 'main' action write-chars '/tmp/foo.png' && \
   zellij --session 'main' action write 13
 ```
 
@@ -85,9 +87,17 @@ Reasoning:
   No new quoting code.
 - `--session <name>` is required because the SSH command runs outside any
   zellij client; without it, zellij refuses to dispatch the action.
+- The `list-sessions --no-formatting | awk ...` preflight is required because
+  zellij 0.44.2 prints "Session '<name>' not found" but exits 0 for
+  `action write-chars` / `action write` against a missing session. `transport.Exec`
+  only sees the remote command's exit status, so the hook must force a non-zero
+  status before the write action. The preflight also rejects resurrectable
+  `EXITED` sessions, which appear in `list-sessions --short` but are not live
+  action targets.
 
 `action write-chars` and `action write` have been stable since zellij 0.32;
-the target environment (devcontainers, v0.44.2) is well past that floor.
+the target environment (devcontainers, v0.44.2) is well past that floor. The
+preflight shape was verified against zellij 0.44.2 on 2026-05-13.
 
 ## Dispatcher changes
 
@@ -103,35 +113,40 @@ In `internal/hook/hook.go`:
 - Update the `unknown kind` error string to
   `(want tmux|tmux-submit|zellij|zellij-submit|exec)`.
 - Add `runZellij`, structured like `runTmux`: empty-session check, then
-  `transport.Exec(ctx, opts, BuildZellijCommand(...))`.
+  `transport.Exec(ctx, opts, BuildZellijCommand(...))`. The command built by
+  `BuildZellijCommand` must include the active-session preflight described
+  above; do not rely on zellij's exit status for missing sessions.
 
 No changes to `transport`, `config`, or `pathtmpl`. No new struct fields.
 
 ## Error handling
 
-Identical to the tmux hook:
+Mostly identical to the tmux hook, with one zellij-specific guard:
 
 - Empty session payload → returned from `Run`, surfaced to the user as a
   hook error before any SSH happens.
-- Remote `zellij` missing, session absent, or `write-chars` exiting non-zero
-  → `transport.Exec` returns the error → `cmd/clipsh/main.go` logs
-  `clipsh: hook "<spec>" failed: <err>` to stderr. The upload itself is
-  still treated as successful and the remote path is still copied to the
-  local clipboard. The existing comment at `main.go:159` already documents
-  this "best-effort, non-fatal" stance; the new kinds inherit it without
-  modification.
+- Remote `zellij` missing, active session absent, or `write-chars` exiting
+  non-zero → the preflight/write command exits non-zero → `transport.Exec`
+  returns the error → `cmd/clipsh/main.go` logs `clipsh: hook "<spec>" failed:
+  <err>` to stderr. The upload itself is still treated as successful and the
+  remote path is still copied to the local clipboard. The existing comment at
+  `main.go:159` already documents this "best-effort, non-fatal" stance; the
+  new kinds inherit it without modification.
 
 ## Tests
 
 Add to `internal/hook/hook_test.go`, parallel to the existing tmux tests:
 
 - `TestBuildZellijCommand_NoSubmit` — asserts the exact command
-  `zellij --session 'main' action write-chars '/tmp/x.png'` and that the
+  contains the active-session preflight and
+  `zellij --session 'main' action write-chars '/tmp/x.png'`, and that the
   output contains neither `write 13` nor `Enter`.
 - `TestBuildZellijCommand_Submit` — asserts the full `&&` chain ending in
   `zellij --session 'main' action write 13`.
 - `TestBuildZellijCommand_SingleQuoteInPath` — verifies the `'\''` escape
   in a path like `/tmp/it's.png`.
+- `TestBuildZellijCommand_SingleQuoteInSession` — verifies the session value is
+  escaped both in the `awk -v s=...` preflight and the `--session` argument.
 - `TestRun_ZellijNeedsSession` — `Run(..., "zellij:", ...)` returns an
   error containing `"session"`.
 - `TestRun_ZellijSubmitNeedsSession` — same for `zellij-submit:`.
@@ -150,14 +165,19 @@ construction and dispatcher routing).
   one zellij example to the `Examples:` block (e.g.,
   `clipsh -P dev --hook zellij:main`).
 - `docs/config.md`: add two rows to the Hooks table for the zellij kinds
-  with the same wording style used for tmux, and a "Requires a running
-  zellij session" admonition pointing to
-  `ssh <host> -t zellij --session <s>` as the bootstrap command instead of
-  the tmux equivalent.
+  with the same wording style used for tmux. While touching this section, fix
+  existing tmux drift: `tmux:<session>` types only `<path>`, not `/image <path>`.
+  Add a "Requires a running zellij session" admonition pointing to
+  `ssh <host> -t zellij attach -c <s>` as the bootstrap command instead of the
+  tmux equivalent.
 - `docs/usage.md`: add one `--hook zellij:main` example to the section that
   already shows `tmux-submit:main`.
 - `docs/examples.md`: short paragraph noting that zellij users substitute
   `zellij:` for `tmux:` in the existing examples; no separate page.
+- `README.md`: extend the feature bullet for post-upload hooks so it lists
+  zellij alongside tmux and exec.
+- `docs/index.md`: update the post-upload hook feature summary so it no longer
+  describes hooks as tmux-only or as typing `/image <path>`.
 - `CHANGELOG.md`: one entry under the Unreleased / next-version heading.
 
 No change to `docs/vs-clipssh.md` — the comparison there is per-feature, not
@@ -171,7 +191,9 @@ Low.
   `runZellij`. No existing path is modified beyond the doc comment and the
   unknown-kind error message.
 - Remote-side failure modes are bounded by the same SSH command return code
-  path the tmux hook already uses.
+  path the tmux hook already uses, with an explicit zellij session preflight to
+  compensate for zellij 0.44.2 returning exit code 0 when an action targets a
+  missing session.
 - The shell-quoting helper is shared, well-tested, and unchanged.
 - Behavior for users not running zellij is unchanged; the new kinds are
   only reachable when a user explicitly types `zellij:` or `zellij-submit:`
