@@ -7,17 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-14
+
 ### Added
-- Upload command now runs `mkdir -p <dir>` on the remote before writing
-  the file, so templates that point at a not-yet-existing directory
-  (e.g. a new project subdir) succeed without a separate provisioning
-  step.
 - `zellij:<session>` and `zellij-submit:<session>` post-upload hook
   kinds, parallel to the existing `tmux:` pair. Drives
   `zellij --session <s> action write-chars` over SSH, with a
   `list-sessions` preflight so a missing or `EXITED` session surfaces
   as a hook error (zellij 0.44.2 exits 0 from `action write-chars`
   against a missing session, so an explicit preflight is required).
+- Upload command now runs `mkdir -p <dir>` on the remote before writing
+  the file, so templates that point at a not-yet-existing directory
+  (e.g. a new project subdir) succeed without a separate provisioning
+  step.
+- macOS clipboard now prefers a **file URL** (Finder Cmd+C, drag-drop)
+  over the rendered image representation. Uploads the original file
+  bytes with the real extension (`report.pdf` stays a PDF instead of
+  becoming a rendered PNG).
+- `{basename}` in remote-path templates now resolves to the original
+  filename stem when the clipboard held a file reference (e.g.
+  `report` for `report.pdf`). Falls back to `"clipboard"` for raw
+  image/text clipboards.
 
 ### Changed (BREAKING)
 - `tmux:<session>` hook no longer sends `Enter` after typing. It now
@@ -31,16 +41,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vim, a bare path for a shell).
 - Added `tmux-submit:<session>` for the previous (type + Enter)
   behavior when callers explicitly want it.
-
-### Added
-- macOS clipboard now prefers a **file URL** (Finder Cmd+C, drag-drop)
-  over the rendered image representation. Uploads the original file
-  bytes with the real extension (`report.pdf` stays a PDF instead of
-  becoming a rendered PNG).
-- `{basename}` in remote-path templates now resolves to the original
-  filename stem when the clipboard held a file reference (e.g.
-  `report` for `report.pdf`). Falls back to `"clipboard"` for raw
-  image/text clipboards.
 
 ### Fixed
 - macOS: when the clipboard holds only an image and `pngpaste` is not
