@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-05-14
+
+### Added
+- `--no-hook` flag suppresses any hook inherited from the active profile
+  for a single invocation. An explicit `--hook <spec>` on the command
+  line still wins over `--no-hook`. Useful when a profile sets a
+  multiplexer hook (e.g. `tmux:main`) but the current target has no such
+  session running.
+
 ## [0.5.0] - 2026-05-14
 
 ### Added
