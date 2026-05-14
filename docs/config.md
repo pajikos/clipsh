@@ -122,6 +122,21 @@ Hooks run as a separate SSH session after the upload completes. A hook
 failure does not fail the overall command — the file is already on the
 remote regardless.
 
+### Skipping a profile's hook ad-hoc
+
+`--no-hook` suppresses any hook inherited from the active profile for the
+current invocation:
+
+```sh
+clipsh -P chargee --no-hook user@host
+```
+
+Useful when a profile sets `hook = "tmux:main"` but the current target has
+no tmux server running, or when you want the upload without driving any
+remote pane. An explicit `--hook <spec>` on the command line still wins
+over `--no-hook` — pass one or the other, not both.
+
+
 ### Example: one-command screenshot into a remote tmux session
 
 `~/.ssh/config`:

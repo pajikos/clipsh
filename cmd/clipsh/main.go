@@ -40,6 +40,7 @@ type flags struct {
 	sshOpts    stringList
 	remoteTmpl string
 	hook       string
+	noHook     bool
 	source     string
 	noCopy     bool
 	dryRun     bool
@@ -135,7 +136,10 @@ func run(argv []string, stdout, stderr io.Writer) int {
 		SSHOpts:  mergeSSHOpts(f.sshOpts, profile.SSHOpts),
 		Verbose:  f.verbose,
 	}
-	hookSpec := firstNonEmpty(f.hook, profile.Hook)
+	hookSpec := f.hook
+	if hookSpec == "" && !f.noHook {
+		hookSpec = profile.Hook
+	}
 
 	// 4. Dry-run: print plan and stop.
 	if f.dryRun {
@@ -202,6 +206,7 @@ func parseFlags(argv []string, stderr io.Writer) *flags {
 	fs.StringVar(&f.remoteTmpl, "r", "", "Remote path template (default: "+defaultPathTmpl+")")
 	fs.StringVar(&f.remoteTmpl, "remote-path", "", "Remote path template (default: "+defaultPathTmpl+")")
 	fs.StringVar(&f.hook, "hook", "", "Post-upload hook: tmux:<s> | tmux-submit:<s> | zellij:<s> | zellij-submit:<s> | exec:<cmd>")
+	fs.BoolVar(&f.noHook, "no-hook", false, "Suppress any profile-inherited hook (an explicit --hook still wins)")
 	fs.StringVar(&f.source, "source", "auto", "Force source: auto|clip|file")
 	fs.BoolVar(&f.noCopy, "no-copy", false, "Do not copy remote path to local clipboard")
 	fs.BoolVar(&f.dryRun, "n", false, "Print what would happen, do nothing")
@@ -246,6 +251,8 @@ Flags:
                             tmux:<s> | tmux-submit:<s> |
                             zellij:<s> | zellij-submit:<s> |
                             exec:<cmd>  (use {path} in exec for the path)
+      --no-hook             Suppress any profile-inherited hook for this
+                            invocation (an explicit --hook still wins)
       --source auto|clip|file  Force content source (default: auto)
       --no-copy             Do not copy remote path to local clipboard
   -n, --dry-run             Print plan, do nothing
@@ -260,6 +267,7 @@ Examples:
   clipsh -P dev                          # use 'dev' profile from ~/.config/clipsh/config.toml
   clipsh -P dev --hook tmux:main         # profile + ad-hoc hook override
   clipsh -P dev --hook zellij:main       # ditto for zellij users
+  clipsh -P dev --no-hook                # use profile's connection but skip its hook
   clipsh -n user@myvm                    # dry-run: show what would happen`)
 }
 

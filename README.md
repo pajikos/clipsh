@@ -104,7 +104,7 @@ and press Enter.
 - **SSH via `~/.ssh/config` aliases** — port, identity, ProxyJump, options all resolve normally.
 - **Remote path templates** with `{timestamp}`, `{ext}`, `{basename}`, `{hostname}`, `{user}`, `{random}`.
 - **Named profiles** in `~/.config/clipsh/config.toml`; override any field with a flag.
-- **Post-upload hooks:** `tmux:<session>` / `zellij:<session>` to type the path into a remote pane, `tmux-submit:<session>` / `zellij-submit:<session>` to also press Enter, `exec:<cmd>` for arbitrary remote commands.
+- **Post-upload hooks:** `tmux:<session>` / `zellij:<session>` to type the path into a remote pane, `tmux-submit:<session>` / `zellij-submit:<session>` to also press Enter, `exec:<cmd>` for arbitrary remote commands. Use `--no-hook` to suppress a hook inherited from a profile for one invocation.
 - **`mkdir -p` on the remote** before writing, so templates pointing at subdirs just work.
 - **Dry-run** (`-n`), **verbose** (`-v`), **`--no-copy`** (skip the clipboard return trip).
 - Pre-built static binaries for macOS and Linux, amd64 + arm64.
